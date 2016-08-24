@@ -1,0 +1,104 @@
+---
+title: "OMNR_Precipitation_Summary_Stats"
+author: "Thomas Van Zuiden"
+date: "August 24, 2016"
+output: html_document
+---
+### Summarising Projected Precipitation data across 19 GCMs for 149 lakes
+
+#### 1. Install packages
+```{r}
+########### PRECIPITATION SUMMARY FOR 149 ONTARIO LAKES ##############
+
+install.packages("dpylr")
+library(dplyr)
+install.packages("tidyr")
+library(tidyr)
+install.packages("reshape")
+library(reshape)
+```
+
+
+#### Method 1
+###### Possible if all data to be explored have common characters in their column headers
+
+```{r}
+setwd("C:\\Users\\adminuser\\Desktop\\EVERYTHING THOMAS\\OMNR Alagae project")
+x<-read.csv("SC_Ontario+Algonqiun+Algoma_Future_clim.csv")
+
+#Convert data to tbl class
+tbl_df(x)
+#Select a subset of variables by column
+x1 <- select(x, LAKE.NUMBER, contains("prec_"), contains("26pr70"), 
+             contains("45pr70"), contains("60pr70"), contains("85pr70"))
+names(x1)
+#Convert tbl class back to a data frame
+x2<-data.frame(x1)
+names(x2)
+write.csv (x2, file = "algalprecip_boxplot_data.csv",row.names=FALSE)
+```
+
+#### Method 2
+###### Extremely tedious... only useful for when extracting columns with highly specific names
+```{r}
+setwd("C:\\Users\\adminuser\\Desktop\\EVERYTHING THOMAS\\OMNR Alagae project")
+x<-read.csv("SC_Ontario+Algonqiun+Algoma_Future_clim.csv")
+#RCP2.6
+x1 <- x[, c(9:56, 249:260, 633:644, 969:980, 1305:1316, 1689:1700, 2073:2084, 2457:2468,
+            3033:3044, 3609:3620, 3993:4004, 4329:4340, 4617:4628, 4905:4916, 5337:5348,
+            5721:5732)]
+#RCP4.5
+x2 <- x[, c(297:308, 681:692, 1017:1028, 1353:1364, 1737:1748, 2121:2132, 2505:2516, 2745:2756,
+            3081:3092, 3321:3332, 3657:3668, 4041:4052, 4377:4388, 4665:4676, 4953:4964, 5097:5108,
+            5385:5396, 5769:5780, 6009:6020)]
+#RCP6.0
+x3 <- x[, c(345:356, 729:740, 1401:1412, 1785:1796, 2169:2180, 2553:2564, 3129:3140, 3705:3716,
+            4089:4100, 4425:4436, 5433:5444, 5817:5828)]
+#RCP8.5
+x4 <- x[, c(393:404, 777:788, 1065:1076, 1449:1460, 1833:1844, 2217:2228, 2601:2612, 2793:2804,
+            3177:3188, 3369:3380, 3753:3764, 4137:4148, 4713:4724, 5001:5012, 5481:5492,
+            5865:5876, 6057:6068)]
+x5<-data.frame(x1,x2,x3,x4)
+write.csv (x5, file = "algalprecip_boxplot_data1.csv",row.names=FALSE)
+```
+
+#### Formatting data and calculating some summary stats
+```{r}
+x<-read.csv("algalprecip_boxplot_data.csv")
+tbl_df(x)
+names(x)
+
+#I am selecting climate values for winter months only
+##NOTE: cannot use "contains" function with prec_1 or any pr701 because I do not want prec_10 or pr7010
+
+x1 <- select(x, contains("prec_12"), ends_with("prec_1"), contains("prec_2"),
+             contains("26pr7012"), ends_with("26pr701"), contains("26pr702"),
+             contains("45pr7012"), ends_with("45pr701"), contains("45pr702"),
+             contains("60pr7012"), ends_with("60pr701"), contains("60pr702"),
+             contains("85pr7012"), ends_with("85pr701"), contains("85pr702"))
+
+x2 <- stack(x1)
+x2 <- rename(x2, c(values = "Total_Winter_Precipitation",ind = "GCM"))
+names(x2)
+
+x2[grep("prec_*", as.character(x2$GCM)), "Climate_Scenario"] <- "1950-2000 Prec"
+x2[grep("*26pr70*", as.character(x2$GCM)), "Climate_Scenario"] <- "RCP 2.6"
+x2[grep("*45pr70*", as.character(x2$GCM)), "Climate_Scenario"] <- "RCP 4.5"
+x2[grep("*60pr70*", as.character(x2$GCM)), "Climate_Scenario"] <- "RCP 6.0"
+x2[grep("*85pr70*", as.character(x2$GCM)), "Climate_Scenario"] <- "RCP 8.5"
+### Check to see if the new column has labelled the rows appropriately with "View(x2)"
+
+x2 %>%  #Get summary stats on each scenario (mean,  St. Dev.,  Coef. of Variation)
+  group_by(Climate_Scenario) %>% 
+  summarize(mean.wint.prec=mean(Total_Winter_Precipitation), sd.wint.prec=sd(Total_Winter_Precipitation)) %>%  
+  mutate(coef=mean.wint.prec/sd.wint.prec) ## Precipitation increases w. climate change in this region
+```
+
+#### Visualisation with box plots
+```{r}
+boxplot(Total_Winter_Precipitation~Climate_Scenario,data=x2, 
+        xlab="Climate Change Scenario", ylab="Total Winter Precipitation (mm)",
+        cex.axis = 1.2, cex.lab = 1.2)
+```
+
+#### Apply same procedure to other seasons, and for temperature values as well
